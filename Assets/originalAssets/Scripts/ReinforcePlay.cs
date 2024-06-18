@@ -5,22 +5,23 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System;
 using System.Text;
-
-public class AdaptPlayModelMove : MonoBehaviour
+public class ReinforcePlay : MonoBehaviour
 {
     [SerializeField] private GameObject Guidance, FeedBack, User;
     private bool fileOpenFlag = false;
     StreamReader sr;
     [SerializeField] string FileName = "default";
     [SerializeField] int FileRowCount = 200;
-    Vector3[] positions;
+    Vector3[] modelPositions;
     Vector3[] userPositions;
-    [SerializeField] LineRenderer myrenderer;
     int ModelTime = 1;
+
+    Vector3 pre_screen_mousePos;
+    Vector3 pre_modelPositions;
     // Use this for initialization
     void Start()
     {
-        positions = new Vector3[FileRowCount];
+        modelPositions = new Vector3[FileRowCount];
         userPositions = new Vector3[FileRowCount];
         OpenData();
 
@@ -73,7 +74,7 @@ public class AdaptPlayModelMove : MonoBehaviour
                         float z = float.Parse(values[3]);
                         Vector3 position = new Vector3(x, y, z);
                         // ここでVector3を使用するか、配列に保存する
-                        positions[i] = position;
+                        modelPositions[i] = position;
                     }
                     i++;
                 }
@@ -110,46 +111,42 @@ public class AdaptPlayModelMove : MonoBehaviour
 
     void Moving()
     {
+        Debug.Log("Moving()");
         Vector3 mousePos = Input.mousePosition;
         Vector3 screen_mousePos = Camera.main.ScreenToWorldPoint(mousePos);
         screen_mousePos = new Vector3(screen_mousePos.x, screen_mousePos.y, 10f);
-        float minimam = 100f; // マウスのx座標と配列のx座標（候補は現在の点から10個）の差の最小値
+        float maxcos = 0; // 学習者ベクトルとnフレーム後見本ベクトルのcos
         int progress = 10;    // ガイダンスをどれだけ先行させるか
-        int regression = 2;   // FBをどれだけ後にずらすか
         int nearest = 0;      // 今回の呼び出しでインデックスがどれだけ進むか
-        for(int i = 0; i < 10; i++)
+
+        
+        for(int i = 0; i < 5; i++) // 学習者ベクトルと0-4フレーム後見本ベクトルを比較して、最も近い（角度が小さい）フレームを選ぶ
         {
-            if(minimam >= Mathf.Abs(screen_mousePos.x - positions[ModelTime + i].x))
+            Vector3 userVec = screen_mousePos - pre_screen_mousePos;
+            Vector3 modelVec = modelPositions[ModelTime + i] - pre_modelPositions;
+            if(maxcos <= Vector3.Dot(modelVec, userVec) / modelVec.magnitude * userVec.magnitude &&
+             0 < Vector3.Dot(modelVec, userVec) / modelVec.magnitude * userVec.magnitude)
             {
-                minimam = Mathf.Abs(screen_mousePos.x - positions[ModelTime + i].x);
+                maxcos = Vector3.Dot(modelVec, userVec) / modelVec.magnitude * userVec.magnitude;
                 nearest =  i;
             }
         }
+
         ModelTime += nearest;
         userPositions[ModelTime] = screen_mousePos;
+
+        pre_screen_mousePos = screen_mousePos;
+        pre_modelPositions = modelPositions[ModelTime];
 
         // Guidanceを提供
         if(ModelTime + progress <= FileRowCount)
         {
-            Guidance.transform.position = positions[ModelTime + progress];
+            Guidance.transform.position = modelPositions[ModelTime + progress];
         }
         else 
         {
             ModelTime = 0;
         }
 
-
-        // FeedBackを提供
-        if(ModelTime > regression)
-        {
-            FeedBack.transform.position = positions[ModelTime - regression];
-            User.transform.position = userPositions[ModelTime - regression];
-            myrenderer.SetPosition(0, positions[ModelTime - regression]);
-            if(userPositions[ModelTime- regression] != new Vector3(0, 0, 0))
-            {
-                myrenderer.SetPosition(1, userPositions[ModelTime - regression]);
-            }
-
-        }
     }
 }
