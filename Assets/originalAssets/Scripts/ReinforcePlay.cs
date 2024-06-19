@@ -7,7 +7,7 @@ using System;
 using System.Text;
 public class ReinforcePlay : MonoBehaviour
 {
-    [SerializeField] private GameObject Guidance, FeedBack, User;
+    [SerializeField] private GameObject Guidance, FeedBack, User, NowModekLine;
     private bool fileOpenFlag = false;
     StreamReader sr;
     [SerializeField] string FileName = "default";
@@ -15,6 +15,7 @@ public class ReinforcePlay : MonoBehaviour
     Vector3[] modelPositions;
     Vector3[] userPositions;
     int ModelTime = 1;
+
 
     Vector3 pre_screen_mousePos;
     Vector3 pre_modelPositions;
@@ -111,7 +112,7 @@ public class ReinforcePlay : MonoBehaviour
 
     void Moving()
     {
-        Debug.Log("Moving()");
+        //Debug.Log("Moving()");
         Vector3 mousePos = Input.mousePosition;
         Vector3 screen_mousePos = Camera.main.ScreenToWorldPoint(mousePos);
         screen_mousePos = new Vector3(screen_mousePos.x, screen_mousePos.y, 10f);
@@ -124,24 +125,24 @@ public class ReinforcePlay : MonoBehaviour
         {
             Vector3 userVec = screen_mousePos - pre_screen_mousePos;
             Vector3 modelVec = modelPositions[ModelTime + i] - pre_modelPositions;
-            if(maxcos <= Vector3.Dot(modelVec, userVec) / modelVec.magnitude * userVec.magnitude &&
-             0 < Vector3.Dot(modelVec, userVec) / modelVec.magnitude * userVec.magnitude)
+            if(maxcos < Vector3.Dot(modelVec, userVec) / modelVec.magnitude * userVec.magnitude &&
+             0.02 < Mathf.Abs(Vector3.Dot(modelVec, userVec) / modelVec.magnitude * userVec.magnitude))
             {
                 maxcos = Vector3.Dot(modelVec, userVec) / modelVec.magnitude * userVec.magnitude;
                 nearest =  i;
             }
         }
-
         ModelTime += nearest;
         userPositions[ModelTime] = screen_mousePos;
 
         pre_screen_mousePos = screen_mousePos;
         pre_modelPositions = modelPositions[ModelTime];
 
-        // Guidanceを提供
+        // Guidanceと現在どこを評価しているかを表す縦のラインを示す
         if(ModelTime + progress <= FileRowCount)
         {
             Guidance.transform.position = modelPositions[ModelTime + progress];
+            NowModekLine.transform.position = modelPositions[ModelTime];
         }
         else 
         {
