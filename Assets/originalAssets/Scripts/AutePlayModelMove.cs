@@ -8,7 +8,7 @@ using System.Text;
 
 public class AutePlayModelMove : MonoBehaviour
 {
-    [SerializeField] private GameObject myCircle;
+    [SerializeField] private GameObject myCircle, User;
     private bool fileOpenFlag = false;
     StreamReader sr;
     [SerializeField] string FileName = "default";
@@ -63,11 +63,11 @@ public class AutePlayModelMove : MonoBehaviour
                 {
                     string line = sr.ReadLine();
                     string[] values = line.Split(',');
-                    if (values.Length >= 4 && i >= 1)
+                    if (values.Length >= 5 && i >= 1)
                     {
-                        float x = float.Parse(values[1]);
-                        float y = float.Parse(values[2]);
-                        float z = float.Parse(values[3]);
+                        float x = float.Parse(values[2]);
+                        float y = float.Parse(values[3]);
+                        float z = float.Parse(values[4]);
                         Vector3 position = new Vector3(x, y, z);
                         // ここでVector3を使用するか、配列に保存する
                         positions[i] = position;
@@ -107,6 +107,11 @@ public class AutePlayModelMove : MonoBehaviour
 
     void Moving()
     {
+        Vector3 mousePos = Input.mousePosition;
+        Vector3 screen_mousePos = Camera.main.ScreenToWorldPoint(mousePos);
+        screen_mousePos = new Vector3(screen_mousePos.x, screen_mousePos.y, 10f);
+        User.transform.position = screen_mousePos;
+
         this.transform.position = positions[ModelTime];
         ModelTime++;
     }
