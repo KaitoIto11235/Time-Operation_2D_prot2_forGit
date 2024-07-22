@@ -15,12 +15,12 @@ public class AdaptPlayModelMove : MonoBehaviour
     [SerializeField] int FileRowCount = 200;
     Vector3[] modelPositions;
     Vector3[] userPositions;
-    int availableNum = 5;
-    float actionPotential = 0; // これが1になると、Guidanceが1フレーム分進む。
+    //int availableNum = 5;
+    //float actionPotential = 0; // これが1になると、Guidanceが1フレーム分進む。
     [SerializeField] LineRenderer myrenderer;
     int correspondTime = 1;  // Userの現在地に対応するModelの時間
     int guidanceTime = 1;   // ガイダンスの現在の時間
-    float score = 0f;       // 現フレームの評価値（ズレの小ささや、前フレームからの省略の小ささ）
+    //float score = 0f;       // 現フレームの評価値（ズレの小ささや、前フレームからの省略の小ささ）
 
     // Use this for initialization
     void Start()
@@ -115,9 +115,9 @@ public class AdaptPlayModelMove : MonoBehaviour
         Vector3 mousePos = Input.mousePosition;
         Vector3 screen_mousePos = Camera.main.ScreenToWorldPoint(mousePos);
         screen_mousePos = new Vector3(screen_mousePos.x, screen_mousePos.y, 10f);
-        float minimum = 1f;    // マウスのx座標と配列のx座標（候補は現在の点から10個）の差の最小値
-        int progress = 5;    // ガイダンスをどれだけ先行させるか
-        float amplitude = 3f;
+        //float minimum = 1f;    // マウスのx座標と配列のx座標（候補は現在の点から10個）の差の最小値
+        //int progress = 5;    // ガイダンスをどれだけ先行させるか
+        //float amplitude = 3f;
         //int regression = 2;   // FBをどれだけ後にずらすか
         float diff_y = 1;       // マウスとモデルのy座標のズレ
         int nearest = 0;        // 今回の呼び出しでインデックスがどれだけ進むか

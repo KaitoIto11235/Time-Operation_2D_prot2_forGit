@@ -15,7 +15,7 @@ public class Adapt2Play : MonoBehaviour
     [SerializeField] int fileRowCount = 200;
     Vector3[] modelPositions;
     Vector3[] userPositions;
-    int availableNum = 10, notAvailableNum = 0;
+    int availableNum = 5, notAvailableNum = 0;
     int correspondTime = 0;  // Userの現在地に対応するModelの時間
     int guidanceTime = 0;   // ガイダンスの現在の時間
     float score = 0f;
@@ -40,17 +40,13 @@ public class Adapt2Play : MonoBehaviour
 
             updateCount++;
             score += Evaluation();
-            Moving();
-            if(updateCount == 10)
+            if(availableNum > 0)
             {
-                if(score > 0)
-                {
-                    availableNum = (int)score;
-                }
-                else
-                {
-                    availableNum = 0;
-                }
+                Moving();
+            }
+            if(updateCount == 5)
+            {
+                availableNum = (int)score;
                 notAvailableNum = 0;
                 score = 0f;
                 updateCount = 0;
@@ -181,7 +177,7 @@ public class Adapt2Play : MonoBehaviour
             diff_y = Mathf.Abs(screen_mousePos.y - modelPositions[correspondTime].y);
             
             //correntScore = (2f - diff_y);
-            correntScore = -diff_y + 2f;
+            correntScore = -2f * diff_y + 4f;
             //if(correntScore > 0f && nearest != 0)
             if(nearest != 0)
             {
@@ -203,8 +199,8 @@ public class Adapt2Play : MonoBehaviour
     }
     void Moving()
     {
-        guidanceTime += (int)(availableNum * updateCount / 10) - notAvailableNum;  // 今回の呼び出しで表示されるガイダンスのインデックス
-        notAvailableNum = availableNum * updateCount / 10;
+        guidanceTime += (int)(availableNum * updateCount / 5) - notAvailableNum;  // 今回の呼び出しで表示されるガイダンスのインデックス
+        notAvailableNum = availableNum * updateCount / 5;
         if(guidanceTime < fileRowCount)
         {
             Guidance.transform.position = modelPositions[guidanceTime];

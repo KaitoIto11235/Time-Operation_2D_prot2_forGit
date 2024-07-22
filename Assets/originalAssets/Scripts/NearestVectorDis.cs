@@ -14,12 +14,12 @@ public class NearestVectorDis : MonoBehaviour
     [SerializeField] int FileRowCount = 200;
     int ModelTime = 0; // userとの近さを測るときのモデル位置
     int progress = 20;    // ガイダンスのインデックス
-    int threshold = 1;
+    //int threshold = 1;
 
     Vector3[] modelPositions;
     Vector3[] userPositions;
 
-    float sumAccuracy = 0; //フレームごとの(3-dis)を足していき、この値が閾値thresholdを超えると、モデルが1フレーム進む。
+    //float sumAccuracy = 0; //フレームごとの(3-dis)を足していき、この値が閾値thresholdを超えると、モデルが1フレーム進む。
 
     // Use this for initialization
     void Start()

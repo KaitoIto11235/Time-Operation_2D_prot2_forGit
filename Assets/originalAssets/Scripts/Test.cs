@@ -5,47 +5,25 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System;
 using System.Text;
-
-public class AutePlayModelMove : MonoBehaviour
+public class Test : MonoBehaviour
 {
-    [SerializeField] private GameObject myCircle, User;
     private bool fileOpenFlag = false;
     StreamReader sr;
     [SerializeField] string FileName = "default";
     [SerializeField] int FileRowCount = 200;
-    [SerializeField, Range(1, 20)] int commaPlaySpeed = 10;
-    float playSpeed = 1.0f;
-    float forSpeedChange = 0f;
     Vector3[] positions;
 
-    int ModelTime = 1;
-    // Use this for initialization
+    // Start is called before the first frame update
     void Start()
     {
-        positions = new Vector3[FileRowCount];
         OpenData();
-        playSpeed = (float)commaPlaySpeed/10;
     }
 
-    private void FixedUpdate()
+    // Update is called once per frame
+    void Update()
     {
-        if (Input.GetMouseButton(0))
-        {
-            Moving();
-        }
-        else
-        {
-            ModelTime = 1;
-        }
-        if(ModelTime == FileRowCount)
-        {
-            //myCircle.SetActive(false);
-            //myCircle.GetComponent<Renderer>().enabled = false;
-            ModelTime = 1;
-        }
         
     }
-
 
     public void OpenData()
     {
@@ -101,31 +79,11 @@ public class AutePlayModelMove : MonoBehaviour
         }
 
     }
-
+    
     void CloseData()
     {
         sr.Dispose();
         Debug.Log("Close_csv");
         fileOpenFlag = false;
-    }
-
-    void Moving()
-    {
-        Vector3 mousePos = Input.mousePosition;
-        Vector3 screen_mousePos = Camera.main.ScreenToWorldPoint(mousePos);
-        screen_mousePos = new Vector3(screen_mousePos.x, screen_mousePos.y, 10f);
-        User.transform.position = screen_mousePos;
-
-        this.transform.position = positions[ModelTime];
-        forSpeedChange += playSpeed;
-        Debug.Log("forSpeedChange:" + forSpeedChange);
-        if(forSpeedChange >= 1.0f)
-        { 
-            ModelTime += (int)forSpeedChange;
-            forSpeedChange -= (int)forSpeedChange;
-            Debug.Log("ModelTime:" + ModelTime);
-        }
-        
-        //ModelTime++;
     }
 }
