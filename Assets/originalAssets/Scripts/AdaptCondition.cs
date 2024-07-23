@@ -6,73 +6,79 @@ using System.ComponentModel;
 using System;
 using System.Text;
 
-public class Adapt2Play : MonoBehaviour
+public class AdaptCondition : MonoBehaviour
 {
-    [SerializeField] private GameObject Guidance, User;
-    private bool fileOpenFlag = false;
-    StreamReader sr;
-    [SerializeField] string fileName = "default";
-    [SerializeField] int fileRowCount = 200;
-    Vector3[] modelPositions;
-    Vector3[] userPositions;
-    int availableNum = 5, notAvailableNum = 0;
-    int correspondTime = 0;  // Userの現在地に対応するModelの時間
-    int guidanceTime = 0;   // ガイダンスの現在の時間
-    float score = 0f;
+    [SerializeField] private GameObject guidance, user;
+    [SerializeField] string readFileName = "default";
+    [SerializeField] int readFileRowCount = 200;
     int updateCount = 0;
-    // Use this for initialization
+    FileOperation adaptFile;
+    GuidancePlay adaptGuidance;
+
+    // Start is called before the first frame update
     void Start()
     {
-        modelPositions = new Vector3[fileRowCount];
-        userPositions = new Vector3[fileRowCount];
-        OpenData();
+        adaptFile = new FileOperation(readFileName, readFileRowCount);
+        adaptGuidance = new GuidancePlay(guidance, user, readFileRowCount, adaptFile.modelPositions);
+        adaptFile.OpenData();
     }
 
-    private void FixedUpdate()
+    // Update is called once per frame
+    void Update()
     {
         if (Input.GetMouseButton(0))
         {
-            if(correspondTime == 0 && guidanceTime == 0)
+            if(adaptGuidance.correspondTime == 0 && adaptGuidance.guidanceTime == 0)
             {
-                correspondTime = 1;
-                guidanceTime = 1;
+                adaptGuidance.correspondTime = 1;
+                adaptGuidance.guidanceTime = 1;
             }
 
             updateCount++;
-            score += Evaluation();
-            if(availableNum > 0)
+            adaptGuidance.score += adaptGuidance.Evaluation();
+            if(adaptGuidance.availableNum > 0)
             {
-                Moving();
+                adaptGuidance.Moving(updateCount);
             }
             if(updateCount == 5)
             {
-                availableNum = (int)score;
-                notAvailableNum = 0;
-                score = 0f;
+                adaptGuidance.availableNum = (int)adaptGuidance.score;
+                adaptGuidance.notAvailableNum = 0;
+                adaptGuidance.score = 0f;
                 updateCount = 0;
-                Debug.Log("availableNum:" + availableNum);
             }
-            Debug.Log("correspondTime:" + correspondTime);
-            Debug.Log("guidanceTime:" + guidanceTime);
 
         }
         else
         {
-            correspondTime = 0;                 // 0行目には文字が入っており、データは1行目から始まる。
-            guidanceTime = 0;
+            adaptGuidance.correspondTime = 0;                 // 0行目には文字が入っており、データは1行目から始まる。
+            adaptGuidance.guidanceTime = 0;
         }
-        if(correspondTime == fileRowCount)
+        if(adaptGuidance.correspondTime == adaptGuidance.fileRowCount)
         {
-            correspondTime = 0;
-            guidanceTime = 0;
+            adaptGuidance.correspondTime = 0;
+            adaptGuidance.guidanceTime = 0;
         }
-        
     }
+}
 
-
+public class FileOperation
+{
+    private bool fileOpenFlag = false;
+    private string fileName;
+    private int fileRowCount;
+    private StreamReader sr;
+    public Vector3[] modelPositions;
+    public Vector3[] userPositions;
+    public FileOperation(string fileName, int fileRowCount)
+    {
+        this.fileName = fileName;
+        this.fileRowCount = fileRowCount;
+        modelPositions = new Vector3[fileRowCount];
+        userPositions = new Vector3[fileRowCount];
+    }
     public void OpenData()
     {
-
         if (!fileOpenFlag)
         {
             string file;
@@ -122,17 +128,34 @@ public class Adapt2Play : MonoBehaviour
         {
             Debug.Log("File has already opened.");
         }
-
     }
 
-    void CloseData()
+    public void CloseData()
     {
         sr.Dispose();
         Debug.Log("Close_csv");
         fileOpenFlag = false;
     }
+}
+public class GuidancePlay
+{
+    public int availableNum = 5, notAvailableNum = 0;
+    public int correspondTime = 0;  // Userの現在地に対応するModelの時間
+    public int guidanceTime = 0;   // ガイダンスの現在の時間
+    public float score = 0f;
 
-    float Evaluation()
+    public int fileRowCount;
+    private GameObject user, guidance;
+    private Vector3[] modelPositions;
+    public GuidancePlay(GameObject guidance, GameObject user, int fileRowCount, Vector3[] positions)
+    {
+        this.guidance = guidance;
+        this.user = user;
+        this.fileRowCount = fileRowCount;
+        this.modelPositions = new Vector3[fileRowCount];
+        this.modelPositions = positions;
+    }
+    public float Evaluation()
     {
         float diff_y = 1f;       // マウスとモデルのy座標のズレ
         int nearest = 0;        // 今回の呼び出しで対応点のインデックスがどれだけ進むか
@@ -140,7 +163,7 @@ public class Adapt2Play : MonoBehaviour
         Vector3 mousePos = Input.mousePosition;
         Vector3 screen_mousePos = Camera.main.ScreenToWorldPoint(mousePos);
         screen_mousePos = new Vector3(screen_mousePos.x, screen_mousePos.y, 10f);
-        User.transform.position = screen_mousePos;
+        user.transform.position = screen_mousePos;
 
         // 現時点（correspondTime）とガイダンス時点（guidanceTime）の間で、最もUserに近い点を二分探索。
         if(correspondTime <= guidanceTime)
@@ -191,19 +214,17 @@ public class Adapt2Play : MonoBehaviour
         else
         {
             Debug.Log("correspondTime > guidanceTime");
-            
-            
             return 0f;
         }
-        
     }
-    void Moving()
+    
+    public void Moving(int updateCount)
     {
         guidanceTime += (int)(availableNum * updateCount / 5) - notAvailableNum;  // 今回の呼び出しで表示されるガイダンスのインデックス
         notAvailableNum = availableNum * updateCount / 5;
         if(guidanceTime < fileRowCount)
         {
-            Guidance.transform.position = modelPositions[guidanceTime];
+            guidance.transform.position = modelPositions[guidanceTime];
         }
         else
         {
@@ -212,4 +233,5 @@ public class Adapt2Play : MonoBehaviour
         }
 
     }
+
 }

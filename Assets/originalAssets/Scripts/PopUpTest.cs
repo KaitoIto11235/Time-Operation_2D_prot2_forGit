@@ -5,24 +5,37 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System;
 using System.Text;
-public class Test : MonoBehaviour
+public class PopUpTest : MonoBehaviour
 {
     private bool fileOpenFlag = false;
     StreamReader sr;
-    [SerializeField] string FileName = "default";
-    [SerializeField] int FileRowCount = 200;
+    [SerializeField] string fileName = "default";
+    [SerializeField] int fileRowCount = 200;
     Vector3[] positions;
 
     // Start is called before the first frame update
     void Start()
     {
+        positions = new Vector3[fileRowCount];
         OpenData();
+        
+        LineRenderer lineRenderer = gameObject.GetComponent<LineRenderer>();
+        lineRenderer.positionCount = positions.Length;
+        lineRenderer.SetPositions(positions);
+
+        Invoke(nameof(DeleteLine), 1f);
     }
 
     // Update is called once per frame
     void Update()
     {
         
+    }
+
+    void DeleteLine()
+    {
+        LineRenderer lineRenderer = gameObject.GetComponent<LineRenderer>();
+        lineRenderer.positionCount = 0;
     }
 
     public void OpenData()
@@ -34,7 +47,7 @@ public class Test : MonoBehaviour
             {
                 //file = Application.persistentDataPath + FileName + ".csv";
 
-                file = Application.dataPath + @"/originalAssets/File/" + FileName + ".csv";
+                file = Application.dataPath + @"/originalAssets/File/" + fileName + ".csv";
             }
 
             if(File.Exists(file))
@@ -52,14 +65,14 @@ public class Test : MonoBehaviour
                         float z = float.Parse(values[4]);
                         Vector3 position = new Vector3(x, y, z);
                         // ここでVector3を使用するか、配列に保存する
-                        positions[i] = position;
+                        positions[i-1] = position;
                     }
                     i++;
                 }
 
-                if(i+1 != FileRowCount)
+                if(i-1 != fileRowCount)
                 {
-                    Debug.Log("FileRowCountが不適切です。\n" + (i + 1) + "に設定してください。" + FileName);
+                    Debug.Log("FileRowCountが不適切です。\n" + (i - 1) + "に設定してください。" + fileName);
                 }
 
                 fileOpenFlag = true;

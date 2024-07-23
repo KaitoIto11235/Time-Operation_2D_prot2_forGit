@@ -75,14 +75,14 @@ public class AdaptPlayModelMove : MonoBehaviour
                         float z = float.Parse(values[4]);
                         Vector3 position = new Vector3(x, y, z);
                         // ここでVector3を使用するか、配列に保存する
-                        modelPositions[i] = position;
+                        modelPositions[i-1] = position;
                     }
                     i++;
                 }
 
-                if(i+1 != FileRowCount)
+                if(i-1 != FileRowCount)
                 {
-                    Debug.Log("FileRowCountが不適切です。\n" + (i + 1) + "に設定してください。" + FileName);
+                    Debug.Log("FileRowCountが不適切です。\n" + (i - 1) + "に設定してください。" + FileName);
                 }
 
                 fileOpenFlag = true;
