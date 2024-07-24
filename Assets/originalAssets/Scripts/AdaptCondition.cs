@@ -10,82 +10,74 @@ public class AdaptCondition : MonoBehaviour
 {
     [SerializeField] private GameObject guidance, user;
     [SerializeField] string readFileName = "default";
+    [SerializeField] string writeFileName = "default";
+
     [SerializeField] int readFileRowCount = 200;
-    int updateCount = 0;
     FileOperation adaptFile;
     GuidancePlay adaptGuidance;
 
     // Start is called before the first frame update
     void Start()
     {
-        adaptFile = new FileOperation(readFileName, readFileRowCount);
+        adaptFile = new FileOperation(readFileName, writeFileName, readFileRowCount);
         adaptGuidance = new GuidancePlay(guidance, user, readFileRowCount, adaptFile.modelPositions);
-        adaptFile.OpenData();
+        adaptFile.ReadOpenData();
+        adaptFile.WriteOpenData();
     }
 
     // Update is called once per frame
-    void Update()
+    void FixedUpdate()
     {
-        if (Input.GetMouseButton(0))
-        {
-            if(adaptGuidance.correspondTime == 0 && adaptGuidance.guidanceTime == 0)
-            {
-                adaptGuidance.correspondTime = 1;
-                adaptGuidance.guidanceTime = 1;
-            }
-
-            updateCount++;
-            adaptGuidance.score += adaptGuidance.Evaluation();
-            if(adaptGuidance.availableNum > 0)
-            {
-                adaptGuidance.Moving(updateCount);
-            }
-            if(updateCount == 5)
-            {
-                adaptGuidance.availableNum = (int)adaptGuidance.score;
-                adaptGuidance.notAvailableNum = 0;
-                adaptGuidance.score = 0f;
-                updateCount = 0;
-            }
-
-        }
-        else
-        {
-            adaptGuidance.correspondTime = 0;                 // 0行目には文字が入っており、データは1行目から始まる。
-            adaptGuidance.guidanceTime = 0;
-        }
-        if(adaptGuidance.correspondTime == adaptGuidance.fileRowCount)
-        {
-            adaptGuidance.correspondTime = 0;
-            adaptGuidance.guidanceTime = 0;
-        }
+        adaptGuidance.GuidanceUpdate();
+        adaptFile.RecordingUpdate();
     }
 }
 
 public class FileOperation
 {
-    private bool fileOpenFlag = false;
-    private string fileName;
+    private bool readFileOpenFlag = false;
+    private bool writeFileOpenFlag = false;
+    private string readFileName;
     private int fileRowCount;
+    private string writeFileName;
+
     private StreamReader sr;
+    private StreamWriter sw;
     public Vector3[] modelPositions;
     public Vector3[] userPositions;
-    public FileOperation(string fileName, int fileRowCount)
+
+    // recording用変数↓
+    private float StartLine = -8f;
+    private float EndLine = 8f;
+	private int trialCount = 1;
+    private float preMousePos = -10f; // マウスの前回のx座標
+    private bool startFlag = false; // true: 準備OK
+    private float time = 0f;
+
+    public FileOperation(string readFileName, int fileRowCount)
     {
-        this.fileName = fileName;
+        this.readFileName = readFileName;
         this.fileRowCount = fileRowCount;
         modelPositions = new Vector3[fileRowCount];
         userPositions = new Vector3[fileRowCount];
     }
-    public void OpenData()
+    public FileOperation(string readFileName, string writeFileName, int fileRowCount)
     {
-        if (!fileOpenFlag)
+        this.readFileName = readFileName;
+        this.writeFileName = writeFileName;
+        this.fileRowCount = fileRowCount;
+        modelPositions = new Vector3[fileRowCount];
+        userPositions = new Vector3[fileRowCount];
+    }
+    public void ReadOpenData()
+    {
+        if (!readFileOpenFlag)
         {
             string file;
             {
                 //file = Application.persistentDataPath + FileName + ".csv";
 
-                file = Application.dataPath + @"/originalAssets/File/" + fileName + ".csv";
+                file = Application.dataPath + @"/originalAssets/File/" + readFileName + ".csv";
             }
 
             if(File.Exists(file))
@@ -110,13 +102,13 @@ public class FileOperation
 
                 if(i-1 != fileRowCount)
                 {
-                    Debug.Log("FileRowCountが不適切です。\n" + (i - 1) + "に設定してください。" + fileName);
+                    Debug.Log("FileRowCountが不適切です。\n" + (i - 1) + "に設定してください。" + readFileName);
                 }
 
-                fileOpenFlag = true;
+                readFileOpenFlag = true;
                 Debug.Log(file);
 
-                CloseData();
+                ReadCloseData();
             }
 
             if (!File.Exists(file))
@@ -130,11 +122,138 @@ public class FileOperation
         }
     }
 
-    public void CloseData()
+    public StreamWriter WriteOpenData()
     {
-        sr.Dispose();
-        Debug.Log("Close_csv");
-        fileOpenFlag = false;
+        if (!writeFileOpenFlag)
+        {
+            string file = Application.dataPath + @"/originalAssets/File/" + writeFileName + ".csv";
+
+            if (!File.Exists(file))
+            {
+                sw = File.CreateText(file);
+                sw.Flush();
+                sw.Dispose();
+
+                //UTF-8で生成...2番目の引数はtrueで末尾に追記、falseでファイルごとに上書き
+                sw = new StreamWriter(new FileStream(file, FileMode.Open), Encoding.UTF8);
+
+                string[] s1 =
+                {
+                "Trial", "time",
+                "PositionX", "PositionY", "PositionZ",
+                };
+                string s2 = string.Join(",", s1);
+                sw.WriteLine(s2);
+                sw.Flush();
+
+                writeFileOpenFlag = true;
+                Debug.Log("Create_csv");
+                Debug.Log(file);
+                return sw;
+            }
+            else
+            {
+                Debug.Log("そのファイルは既に存在しています。ファイル名をInspectorから変更してください。"); 
+                return null;
+            }
+        }
+        else
+        {
+            Debug.Log("ファイルは既に開かれています。");
+            return null;
+        }
+
+    }
+    public void RecordingUpdate()
+    {
+        time += Time.deltaTime;
+        Vector3 worldMousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition); // マウスの現在のx座標
+        Vector3 mousePos = new Vector3(worldMousePos.x, worldMousePos.y, 10f);
+
+        if(Input.GetMouseButton(0) && mousePos.x <= StartLine) // マウスがスタートエリアに入ったとき、記録準備OKにする。
+        {
+            time = 0f;
+            startFlag = true;
+
+            /*
+            myCircle.transform.position = new Vector3(-10f, 0f, 10f);
+            myCircle.GetComponent<SpriteRenderer>().color = Color.yellow;
+            */
+        }
+        else if (Input.GetMouseButton(0) && mousePos.x - preMousePos > 0 && startFlag &&
+        mousePos.x >= StartLine && mousePos.x <= EndLine) // Playエリアでマウスが右に動いているとき、データを保存する。
+        {
+            SaveData(mousePos);
+            /*
+            startLine.GetComponent<SpriteRenderer>().color = Color.white;
+            endLine.GetComponent<SpriteRenderer>().color = Color.yellow;
+            */
+        }
+        else if(Input.GetMouseButton(0) && mousePos.x >= EndLine && startFlag) // マウスがエンドエリアに入ったとき、空行を入れる。「startFlag」条件のため、一度しか呼び出されない。
+        {
+            EndData();
+            startFlag = false; // もう一度スタートエリアに入らない限り、データが保存されないようにするためのもの。
+
+            /*
+            startLine.GetComponent<SpriteRenderer>().color = Color.yellow;
+            endLine.GetComponent<SpriteRenderer>().color = Color.white;
+            myCircle.GetComponent<SpriteRenderer>().color = Color.white;
+            */
+        }
+        else if (Input.GetKeyDown(KeyCode.Return)) // エンターキーが押されたら、ファイルを閉じる。
+        {
+            WriteCloseData();
+        }
+
+        preMousePos = mousePos.x;
+    }
+
+    public void EndData()
+    {
+        sw.WriteLine("");
+        sw.Flush();
+        Debug.Log("End_Trail:" + trialCount);
+        trialCount++;
+    }
+
+    public void SaveData(Vector3 mousePos)
+    {
+        //myCircle.transform.position = mousePos;
+
+        string[] s1 =
+        {
+                Convert.ToString(trialCount), Convert.ToString(time),
+                Convert.ToString(mousePos.x), Convert.ToString(mousePos.y), Convert.ToString(mousePos.z),
+        };
+        string s2 = string.Join(",", s1);
+        sw.WriteLine(s2);
+        sw.Flush();
+    }
+    private void ReadCloseData()
+    {
+        if (sr != null) // swがnullでないことを確認
+        {
+            sr.Dispose();
+            Debug.Log("CloseRead_csv");
+            readFileOpenFlag = false;
+        }
+        else
+        {
+            Debug.Log("StreamReaderが初期化されていません。");
+        }
+    }
+    private void WriteCloseData()
+    {
+        if (sw != null) // swがnullでないことを確認
+        {
+            sw.Dispose();
+            Debug.Log("CloseWrite_csv");
+            writeFileOpenFlag = false;  
+        }
+        else
+        {
+            Debug.Log("StreamWriterが初期化されていません。");
+        }
     }
 }
 public class GuidancePlay
@@ -143,6 +262,7 @@ public class GuidancePlay
     public int correspondTime = 0;  // Userの現在地に対応するModelの時間
     public int guidanceTime = 0;   // ガイダンスの現在の時間
     public float score = 0f;
+    private int updateCount;
 
     public int fileRowCount;
     private GameObject user, guidance;
@@ -233,5 +353,40 @@ public class GuidancePlay
         }
 
     }
+    public void GuidanceUpdate()
+    {
+        if (Input.GetMouseButton(0))
+        {
+            if(correspondTime == 0 && guidanceTime == 0)
+            {
+                correspondTime = 1;
+                guidanceTime = 1;
+            }
 
+            updateCount++;
+            score += Evaluation();
+            if(availableNum > 0)
+            {
+                Moving(updateCount);
+            }
+            if(updateCount == 5)
+            {
+                availableNum = (int)score;
+                notAvailableNum = 0;
+                score = 0f;
+                updateCount = 0;
+            }
+
+        }
+        else
+        {
+            correspondTime = 0;                 
+            guidanceTime = 0;
+        }
+        if(correspondTime == fileRowCount)
+        {
+            correspondTime = 0;
+            guidanceTime = 0;
+        }
+    }
 }
