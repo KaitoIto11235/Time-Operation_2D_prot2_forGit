@@ -305,9 +305,9 @@ public class GuidancePlay  // ガイダンスに関する計算・処理を行�
 {
     float time = 0f;
     private int availableNum = 5, notAvailableNum = 0;
-    private int correspondTime = 0;  // Userの現在地に対応するModelの時間
-    private int guidanceTime = 0;   // ガイダンスの現在の時間
-    private float score = 0f;       // 5フレームでのスコア
+    private int correspondTime = 0;  // Userの現在地に対応するModelの時間。 値が-1のとき、試行と試行の間であることを意味する
+    private int guidanceTime = 0;   // ガイダンスの現在の時間。値が-1のとき、ユーザーが右端まで到達したことを意味する
+    private float frame_5_score = 0f;       // 5フレームでのスコア
     private float trialDiff;        // 1試行での誤差
     private float trialScore = 0f; // 1試行でのスコア
     private int updateCount;
@@ -387,6 +387,7 @@ public class GuidancePlay  // ガイダンスに関する計算・処理を行�
         }
     }*/
 
+    // 現フレームのユーザーの精度を評価
     public float Evaluation()
     {
         int nearest = 0;        // 今回の呼び出しで対応点のインデックスがどれだけ進むか
@@ -403,17 +404,17 @@ public class GuidancePlay  // ガイダンスに関する計算・処理を行�
             float diff = 0f;
             float minDiff = 100f;
             int maxIndex = 0;
-            if(guidanceTime < fileRowCount)
+            if(guidanceTime < fileRowCount-1)
             {
                 maxIndex = guidanceTime;
             }
             else
             {
-                maxIndex = fileRowCount;
+                maxIndex = fileRowCount-1;
             }
 
             // 現時点（correspondTime）とガイダンス時点（guidanceTime）の間で、最もUserに近い点を探索。
-            for(int i = 0; correspondTime + i < maxIndex; i++)
+            for(int i = 0; correspondTime + i <= maxIndex; i++)
             {
                 diff = Vector3.Distance(screen_mousePos, modelPositions[correspondTime + i]);
                 if(diff < minDiff)
@@ -427,11 +428,15 @@ public class GuidancePlay  // ガイダンスに関する計算・処理を行�
             {
                 nearest = -1;           // ガイダンスに追いついてしまったとき、下のif文が常にfalseになりガイダンスが更新されなくなるため。それの対処。
             }
-            correntScore = -1f * (minDiff - 4f);
+            correntScore = -2f * (minDiff - 1f);
 
-            if(nearest != 0)  // ユーザーが止まってなければ
+            if(nearest != 0 && nearest != -1)  // ユーザーが止まっておらず、ガイダンスに追いついていなければ、
             {
                 return correntScore;  // スコアを返す。
+            }
+            else if(nearest == -1)
+            {
+                return 1f;
             }
             else
             {
@@ -445,11 +450,13 @@ public class GuidancePlay  // ガイダンスに関する計算・処理を行�
         }
     }
     
+    
     public void Moving(int updateCount)
     {
-        if(time <= 0.2f)
+        if(time <= 0.1f) // 試行開始10フレームは、前回の利用可能フレーム分だけ見本が進む
         {
-            guidanceTime = (int)(availableNum * time * 5);
+            Debug.Log("availableNum" + availableNum);
+            guidanceTime = (int)(availableNum * (time * 10f));
         }
         else
         {
@@ -459,63 +466,68 @@ public class GuidancePlay  // ガイダンスに関する計算・処理を行�
 
         if(guidanceTime < fileRowCount)
         {
-            guidance.transform.position = modelPositions[guidanceTime];
-        }/*
+            guidance.transform.position = modelPositions[guidanceTime];  // ガイダンスが右端に到達しても、guidanceTimeの値自体は更新される。ガイダンスは進まない
+        }
         else
         {
-            // Debug.Log("Moving():guidanceTime >= FileRowCount");
-            trialScore = guidanceTime - correspondTime;     // どれだけ先行させられたか。ガイダンスが終わった時点で呼び出され、それ以降呼び出されない。
-            guidanceTime = -1;                              // それ以降呼び出されないための処理。
-        }*/
+            Debug.Log("guidanceTime" + guidanceTime);
+        }
 
         if(correspondTime >= fileRowCount - 1 && guidanceTime != -1)
         {
             Debug.Log("correspondTime >= fileRowCount");
             Debug.Log("guidanceTime:" + guidanceTime);
+            Debug.Log("correspondTime:" + correspondTime);
             trialScore = guidanceTime - correspondTime;     // どれだけ先行させられたか。ガイダンスが終わった時点で呼び出され、それ以降呼び出されない。
             guidanceTime = -1;                              // それ以降呼び出されないための処理。
         }
     }
     public void GuidanceUpdate()
     {
+        // Debug用
+        if(Input.GetKeyDown(KeyCode.Space))
+        {
+            Debug.Log("guidanceTime:" + guidanceTime);
+            Debug.Log("correspondTime:" + correspondTime);
+        }
+        //
+
         if (Input.GetMouseButton(0))
         {
             time += Time.deltaTime;
             if(correspondTime == -1 && guidanceTime == -1)  // 第1試行を除いたすべての試行の初期動作。
             {
-                Debug.Log("trailScore" + trialScore);
                 availableNum = (int)trialScore;
-                Debug.Log("avalableNum" + availableNum);
                 trialScore = 0f;
                 time = 0f;
                 correspondTime = 0;
                 guidanceTime = 0;
                 notAvailableNum = 0;
-                score = 0f;
+                frame_5_score = 0f;
             }
-            else if(time > 0.2f && guidanceTime != -1)
+            else if(time > 0.2f) //&& guidanceTime != -1)
             {
                 updateCount++;
-                score += Evaluation();  // ユーザーが止まっていない or correspondTimeがguidanceTimeを超えていない ⇒ スコアが返される。
+                frame_5_score += Evaluation();  // ユーザーが止まっていない かつ correspondTime < guidanceTime ⇒ 現フレームのスコアが返される。
             }
 
-            if(availableNum > 0 && guidanceTime != -1)
+            if(availableNum > 0 && guidanceTime != -1) // guidanceTime == -1 ⇒ ユーザーが最後まで到達したことを意味する
             {
                 Moving(updateCount);
             }
 
-            if(updateCount == 5 || (time > 0.08f && time <= 0.2f))  // 初期動作時または5フレームごとに呼び出し、利用可能インデックス数の更新や使用済み利用可能インデックス数を0に。
+            //if(updateCount == 5 || (time > 0.08f && time <= 0.2f))  // 初期動作時または5フレームごとに呼び出し、利用可能インデックス数の更新や使用済み利用可能インデックス数を0に。
+            if(updateCount == 5)
             {
-                availableNum = (int)score;
+                availableNum = (int)frame_5_score;
                 notAvailableNum = 0;
-                score = 0f;
+                frame_5_score = 0f;
                 updateCount = 0;
             }
         }
         else if(guidanceTime == -1)
         {
-            Debug.Log("correspondTime:" + correspondTime);
-            correspondTime = -1;
+            correspondTime = -1;  // 1試行終了を意味する
         }
         /*
         if(correspondTime >= fileRowCount)
