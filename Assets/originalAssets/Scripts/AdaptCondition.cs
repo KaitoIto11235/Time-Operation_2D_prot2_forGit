@@ -12,37 +12,35 @@ public class AdaptCondition : MonoBehaviour
     [SerializeField] string readFileName = "default";
     [SerializeField] string writeFileName = "default";
     [SerializeField] GameObject StartLine, EndLine;
-    [SerializeField] int testInterval = 3;
 
-    [SerializeField] int readFileRowCount = 200;
+    [SerializeField] int readFileRowCount = 1000;
     FileOperation adaptFile;
     GuidancePlay adaptGuidance;
     [SerializeField] bool Recording = false;
 
-    // Start is called before the first frame update
+    
     void Start()
     {
         if(Recording)
         {
-            adaptFile = new FileOperation(readFileName, readFileRowCount, writeFileName, user, StartLine, EndLine, testInterval);
+            adaptFile = new FileOperation(readFileName, readFileRowCount, writeFileName, user, StartLine, EndLine);
             adaptFile.WriteOpenData();
         }
         else
         {
-            adaptFile = new FileOperation(readFileName, readFileRowCount, testInterval);
+            adaptFile = new FileOperation(readFileName, readFileRowCount);
         }
         adaptGuidance = new GuidancePlay(guidance, user, readFileRowCount, adaptFile.modelPositions);
         adaptFile.ReadOpenData();
-        
+
+        adaptFile.FileSettingCheck();
     }
 
     // Update is called once per frame
     void FixedUpdate()
     {
-        if(adaptFile.TrialCount % testInterval != 0)
-        {
-            adaptGuidance.GuidanceUpdate();
-        }
+        adaptGuidance.GuidanceUpdate();
+
         if(Recording)
         {
             adaptFile.RecordingUpdate();
@@ -58,34 +56,46 @@ public class FileOperation  // ファイルの読み書きを行う。
     private string readFileName;
     private int fileRowCount;
     private string writeFileName;
-    private int testInterval;
     private StreamReader sr;
     private StreamWriter sw;
     public Vector3[] modelPositions;
     public Vector3[] userPositions;
 
     // recording用変数↓
-    private float StartLine = -8f;
-    private float EndLine = 8f;
+    private float StartLinePosX = -8f;
+    private float EndLinePosX = 8f;
 	private int trialCount = 1;
     public int TrialCount
     { 
         get{ return trialCount; }
     }
-    private int testCount = 0;
-    private float preMousePos = -10f; // マウスの前回のx座標
     private bool startFlag = false; // true: 準備OK
-    private float time = 0f;
+    private float time = 0f;        // true: どこかでファイル設定が間違っていて開けないため、再生停止
 
-    public FileOperation(string readFileName, int fileRowCount, int testInterval)
+    private bool fileSettingWrong = false;
+    private bool testFlag = false;
+
+    // 書き込みなしコンストラクタ
+    public FileOperation(string readFileName, int fileRowCount)
     {
         this.readFileName = readFileName;
         this.fileRowCount = fileRowCount;
-        this.testInterval = testInterval;
         modelPositions = new Vector3[fileRowCount];
         userPositions = new Vector3[fileRowCount];
     }
-    public FileOperation(string readFileName, int fileRowCount, string writeFileName, GameObject recordObj, GameObject startLine, GameObject endLine, int testInterval)
+
+    // 読み込みなしコンストラクタ
+    public FileOperation(string writeFileName, GameObject recordObj, GameObject startLine, GameObject endLine)
+    {
+        this.writeFileName = writeFileName;
+        this.recordObject = recordObj;
+        this.startLine = startLine;
+        this.endLine = endLine;
+        testFlag = true;
+    }
+
+    // 読み書きありコンストラクタ
+    public FileOperation(string readFileName, int fileRowCount, string writeFileName, GameObject recordObj, GameObject startLine, GameObject endLine)
     {
         this.recordObject = recordObj;
         this.startLine = startLine;
@@ -93,7 +103,6 @@ public class FileOperation  // ファイルの読み書きを行う。
         this.readFileName = readFileName;
         this.writeFileName = writeFileName;
         this.fileRowCount = fileRowCount;
-        this.testInterval = testInterval;
         modelPositions = new Vector3[fileRowCount];
         userPositions = new Vector3[fileRowCount];
     }
@@ -131,6 +140,7 @@ public class FileOperation  // ファイルの読み書きを行う。
                 if(i-1 != fileRowCount)
                 {
                     Debug.Log("FileRowCountが不適切です。\n" + (i - 1) + "に設定してください。" + readFileName);
+                    fileSettingWrong = true;
                 }
 
                 readFileOpenFlag = true;
@@ -185,6 +195,7 @@ public class FileOperation  // ファイルの読み書きを行う。
             else
             {
                 Debug.Log("そのファイルは既に存在しています。ファイル名をInspectorから変更してください。"); 
+                fileSettingWrong = true;
                 return null;
             }
         }
@@ -193,7 +204,14 @@ public class FileOperation  // ファイルの読み書きを行う。
             Debug.Log("ファイルは既に開かれています。");
             return null;
         }
+    }
 
+    public void FileSettingCheck()
+    {
+        if(fileSettingWrong)
+        {
+            UnityEditor.EditorApplication.isPlaying = false;            // エディタの再生を強制終了
+        }
     }
     public void RecordingUpdate()
     {
@@ -201,7 +219,7 @@ public class FileOperation  // ファイルの読み書きを行う。
         Vector3 worldMousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition); // マウスの現在のx座標
         Vector3 mousePos = new Vector3(worldMousePos.x, worldMousePos.y, 10f);
 
-        if(Input.GetMouseButton(0) && mousePos.x <= StartLine) // マウスがスタートエリアに入ったとき、記録準備OKにする。
+        if(Input.GetMouseButton(0) && mousePos.x <= StartLinePosX) // マウスがスタートエリアに入ったとき、記録準備OKにする。
         {
             time = 0f;
             startFlag = true;
@@ -209,15 +227,15 @@ public class FileOperation  // ファイルの読み書きを行う。
             
             recordObject.GetComponent<SpriteRenderer>().color = Color.yellow;
         }
-        else if (Input.GetMouseButton(0) && mousePos.x - preMousePos > 0 && startFlag &&
-        mousePos.x >= StartLine && mousePos.x <= EndLine) // Playエリアでマウスが右に動いているとき、データを保存する。
+        else if (Input.GetMouseButton(0)  && startFlag &&
+        mousePos.x >= StartLinePosX && mousePos.x <= EndLinePosX) // Playエリアでマウスが右に動いているとき、データを保存する。
         {
             SaveData(mousePos);
             
             startLine.GetComponent<SpriteRenderer>().color = Color.white;
             endLine.GetComponent<SpriteRenderer>().color = Color.yellow;
         }
-        else if(Input.GetMouseButton(0) && mousePos.x >= EndLine && startFlag) // マウスがエンドエリアに入ったとき、空行を入れる。「startFlag」条件のため、一度しか呼び出されない。
+        else if(Input.GetMouseButton(0) && mousePos.x >= EndLinePosX && startFlag) // マウスがエンドエリアに入ったとき、空行を入れる。「startFlag」条件のため、一度しか呼び出されない。
         {
             EndData();
             startFlag = false; // もう一度スタートエリアに入らない限り、データが保存されないようにするためのもの。
@@ -226,12 +244,11 @@ public class FileOperation  // ファイルの読み書きを行う。
             endLine.GetComponent<SpriteRenderer>().color = Color.white;
             recordObject.GetComponent<SpriteRenderer>().color = Color.white;
         }
-        else if (Input.GetKeyDown(KeyCode.Return)) // エンターキーが押されたら、ファイルを閉じる。
+        if (Input.GetKeyDown(KeyCode.Return)) // エンターキーが押されたら、ファイルを閉じる。
         {
             WriteCloseData();
         }
 
-        preMousePos = mousePos.x;
     }
 
     public void EndData()
@@ -239,31 +256,25 @@ public class FileOperation  // ファイルの読み書きを行う。
         sw.WriteLine("");
         sw.Flush();
         Debug.Log("End_Trail:" + trialCount);
-        if(trialCount % testInterval == 0)
-        {
-            testCount++;
-        }
         trialCount++;
     }
 
     public void SaveData(Vector3 mousePos)
     {
-        //myCircle.transform.position = mousePos;
-
         string[] s1 =
         {
-            Convert.ToString(10 * (testCount+1) + trialCount - testCount), Convert.ToString(time),
+            Convert.ToString(trialCount), Convert.ToString(time),
             Convert.ToString(mousePos.x), Convert.ToString(mousePos.y), Convert.ToString(mousePos.z),
         };
         string[] s2 =
         {
-            "test" + Convert.ToString(trialCount / testInterval), Convert.ToString(time),
+            "test" + Convert.ToString(trialCount), Convert.ToString(time),
             Convert.ToString(mousePos.x), Convert.ToString(mousePos.y), Convert.ToString(mousePos.z),
         };
         
         string s3 = string.Join(",", s1);
         string s4 = string.Join(",", s2);
-        if(trialCount % testInterval != 0)
+        if(!testFlag)
         {
             sw.WriteLine(s3);
         }
@@ -303,18 +314,20 @@ public class FileOperation  // ファイルの読み書きを行う。
 }
 public class GuidancePlay  // ガイダンスに関する計算・処理を行う。
 {
-    float time = 0f;
+    float trialTime = 0f;        // 1試行の時間
     private int availableNum = 5, notAvailableNum = 0;
     private int correspondTime = 0;  // Userの現在地に対応するModelの時間。 値が-1のとき、試行と試行の間であることを意味する
     private int guidanceTime = 0;   // ガイダンスの現在の時間。値が-1のとき、ユーザーが右端まで到達したことを意味する
     private float frame_5_score = 0f;       // 5フレームでのスコア
-    private float trialDiff;        // 1試行での誤差
+    private float trialError = 0f;   // 1試行での誤差
     private float trialScore = 0f; // 1試行でのスコア
     private int updateCount;
+    private int stopCount = 0;   // 同じ対応点で停止している時間
 
     private int fileRowCount;
     private GameObject user, guidance;
     private Vector3[] modelPositions;
+
     public GuidancePlay(GameObject guidance, GameObject user, int fileRowCount, Vector3[] positions)
     {
         this.guidance = guidance;
@@ -323,69 +336,7 @@ public class GuidancePlay  // ガイダンスに関する計算・処理を行�
         this.modelPositions = new Vector3[fileRowCount];
         this.modelPositions = positions;
     }
-    /*public float Evaluation()
-    {
-        float diff_y = 1f;       // マウスとモデルのy座標のズレ
-        int nearest = 0;        // 今回の呼び出しで対応点のインデックスがどれだけ進むか
-
-        Vector3 mousePos = Input.mousePosition;
-        Vector3 screen_mousePos = Camera.main.ScreenToWorldPoint(mousePos);
-        screen_mousePos = new Vector3(screen_mousePos.x, screen_mousePos.y, 10f);
-        user.transform.position = screen_mousePos;
-
-        // 現ユーザーのポジションを評価
-        if(correspondTime <= guidanceTime)
-        {
-            int head = correspondTime;
-            int tail = guidanceTime;
-            int center = (tail + head) / 2;
-            float correntScore = 0f;
-            
-            // 現時点（correspondTime）とガイダンス時点（guidanceTime）の間で、最もUserに近い点を二分探索。
-            for(int count = 0; tail - head > 0 && count < 10; count++)
-            {
-                if(modelPositions[center].x - screen_mousePos.x > 0)
-                {
-                    tail = center;
-                }
-                else
-                {
-                    head = center + 1;
-                }
-                center = head + (tail - head) / 2;
-                if(count == 9)
-                {
-                    Debug.Log("count =" + count);
-                }
-            }
-            nearest = center - correspondTime;
-            correspondTime = center;
-            if(correspondTime == guidanceTime)
-            {
-                nearest = -1;               // ガイダンスに追いついてしまったとき、下のif文が常にfalseになりガイダンスが更新されなくなるため。それの対処。
-            }
-
-            // y座標のズレをスコア化
-            diff_y = Mathf.Abs(screen_mousePos.y - modelPositions[correspondTime].y);
-            //correntScore = (2f - diff_y);
-            correntScore = -2f * diff_y + 4f;
-
-
-            if(nearest != 0)  // ユーザーが止まってなければ
-            {
-                return correntScore;  // スコアを返す。
-            }
-            else
-            {
-                return 0f;
-            }
-        }
-        else
-        {
-            // Debug.Log("correspondTime > guidanceTime");
-            return 0f;
-        }
-    }*/
+    
 
     // 現フレームのユーザーの精度を評価
     public float Evaluation()
@@ -400,10 +351,10 @@ public class GuidancePlay  // ガイダンスに関する計算・処理を行�
         // 現ユーザーのポジションを評価
         if(correspondTime <= guidanceTime)
         {
-            float correntScore = 0f;
             float diff = 0f;
             float minDiff = 100f;
             int maxIndex = 0;
+
             if(guidanceTime < fileRowCount-1)
             {
                 maxIndex = guidanceTime;
@@ -413,33 +364,61 @@ public class GuidancePlay  // ガイダンスに関する計算・処理を行�
                 maxIndex = fileRowCount-1;
             }
 
-            // 現時点（correspondTime）とガイダンス時点（guidanceTime）の間で、最もUserに近い点を探索。
-            for(int i = 0; correspondTime + i <= maxIndex; i++)
+            float JumpPenalty(int progress, int count) // 前フレームの対応点から2つ以上離れた点に対して、距離に対してペナルティを与える関数
             {
-                diff = Vector3.Distance(screen_mousePos, modelPositions[correspondTime + i]);
+                if(progress == 0 || progress == 1 || count > 25)
+                {
+                    return 0f;
+                }
+                else
+                {
+                    return (25 - count) * 0.01f * progress;
+                }
+            }
+            float FrameScore(float minDiff, int count) // 今回の呼び出しにおいて、最も近い点との距離minDiffをスコア化する関数
+            {
+                if(count > 25)
+                {
+                    return 0.2f;
+                }
+                else
+                {
+                    return -2f * (minDiff - 1f) - count / 12.5f;
+                }
+            }
+
+            // 現時点（correspondTime）とガイダンス時点（guidanceTime）の間で、最もUserに近い点を探索。
+            for(int progress = 0; correspondTime + progress <= maxIndex; progress++)
+            {
+                diff = Vector3.Distance(screen_mousePos, modelPositions[correspondTime + progress]) + JumpPenalty(progress, stopCount);
                 if(diff < minDiff)
                 {
                     minDiff = diff;     // 現フレームにおけるユーザー位置のズレの最小値を更新
-                    nearest = i;        // 最小値をとるモデル位置と現ユーザー位置のindex差を更新
+                    nearest = progress;        // 最小値をとるモデル位置と現ユーザー位置のindex差を更新
                 }
             }
+            trialError += minDiff;
             correspondTime += nearest;
-            if(correspondTime == guidanceTime)
-            {
-                nearest = -1;           // ガイダンスに追いついてしまったとき、下のif文が常にfalseになりガイダンスが更新されなくなるため。それの対処。
-            }
-            correntScore = -2f * (minDiff - 1f);
 
-            if(nearest != 0 && nearest != -1)  // ユーザーが止まっておらず、ガイダンスに追いついていなければ、
+            if(correspondTime == guidanceTime)  // nearest == -1 => ユーザーがガイダンスに追いついた
             {
-                return correntScore;  // スコアを返す。
+                nearest = -1;                   // ガイダンスに追いついてしまったとき、下のif文が常にfalseになりガイダンスが更新されなくなるため。それの対処。
+            }
+
+            if(nearest != 0 && nearest != -1)   // ユーザーが止まっておらず、ガイダンスに追いついていなければ、
+            {
+                float score = FrameScore(minDiff, stopCount);            // スコアを返す。
+                stopCount = 0;
+                return score;            // スコアを返す。
             }
             else if(nearest == -1)
             {
+                stopCount = 0;
                 return 1f;
             }
             else
             {
+                stopCount++;
                 return 0f;
             }
         }
@@ -453,10 +432,9 @@ public class GuidancePlay  // ガイダンスに関する計算・処理を行�
     
     public void Moving(int updateCount)
     {
-        if(time <= 0.1f) // 試行開始10フレームは、前回の利用可能フレーム分だけ見本が進む
+        if(trialTime <= 0.1f) // 試行開始10フレームは、前回の利用可能フレーム分だけ見本が進む
         {
-            Debug.Log("availableNum" + availableNum);
-            guidanceTime = (int)(availableNum * (time * 10f));
+            guidanceTime = (int)(availableNum * (trialTime * 10f));
         }
         else
         {
@@ -464,48 +442,44 @@ public class GuidancePlay  // ガイダンスに関する計算・処理を行�
             notAvailableNum = availableNum * updateCount / 5;
         }
 
-        if(guidanceTime < fileRowCount)
+        if(guidanceTime < fileRowCount - 1)
         {
             guidance.transform.position = modelPositions[guidanceTime];  // ガイダンスが右端に到達しても、guidanceTimeの値自体は更新される。ガイダンスは進まない
         }
         else
         {
-            Debug.Log("guidanceTime" + guidanceTime);
+            guidance.transform.position = modelPositions[fileRowCount - 2];
         }
 
-        if(correspondTime >= fileRowCount - 1 && guidanceTime != -1)
+        if(correspondTime >= fileRowCount - 2 && guidanceTime != -1)
         {
-            Debug.Log("correspondTime >= fileRowCount");
-            Debug.Log("guidanceTime:" + guidanceTime);
-            Debug.Log("correspondTime:" + correspondTime);
-            trialScore = guidanceTime - correspondTime;     // どれだけ先行させられたか。ガイダンスが終わった時点で呼び出され、それ以降呼び出されない。
+            guidance.transform.position = modelPositions[0];
+            trialScore = (guidanceTime - correspondTime) / 10;     // どれだけ先行させられたか。ガイダンスが終わった時点で呼び出され、それ以降呼び出されない。
             guidanceTime = -1;                              // それ以降呼び出されないための処理。
         }
     }
     public void GuidanceUpdate()
     {
-        // Debug用
-        if(Input.GetKeyDown(KeyCode.Space))
+        if(Input.GetMouseButton(1))
         {
             Debug.Log("guidanceTime:" + guidanceTime);
-            Debug.Log("correspondTime:" + correspondTime);
+            Debug.Log("correspondTime" + correspondTime);
+            Debug.Log("stopCount" + stopCount);
         }
-        //
-
         if (Input.GetMouseButton(0))
         {
-            time += Time.deltaTime;
+            trialTime += Time.deltaTime;
             if(correspondTime == -1 && guidanceTime == -1)  // 第1試行を除いたすべての試行の初期動作。
             {
                 availableNum = (int)trialScore;
                 trialScore = 0f;
-                time = 0f;
+                trialTime = 0f;
                 correspondTime = 0;
                 guidanceTime = 0;
                 notAvailableNum = 0;
                 frame_5_score = 0f;
             }
-            else if(time > 0.2f) //&& guidanceTime != -1)
+            else if(trialTime > 0.2f) //&& guidanceTime != -1)
             {
                 updateCount++;
                 frame_5_score += Evaluation();  // ユーザーが止まっていない かつ correspondTime < guidanceTime ⇒ 現フレームのスコアが返される。
@@ -529,11 +503,5 @@ public class GuidancePlay  // ガイダンスに関する計算・処理を行�
         {
             correspondTime = -1;  // 1試行終了を意味する
         }
-        /*
-        if(correspondTime >= fileRowCount)
-        {
-            correspondTime = -1;
-            guidanceTime = -1;
-        }*/
     }
 }

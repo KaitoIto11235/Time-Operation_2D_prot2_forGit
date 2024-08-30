@@ -10,7 +10,7 @@ public class PopUpTest : MonoBehaviour
     private bool fileOpenFlag = false;
     StreamReader sr;
     [SerializeField] string fileName = "default";
-    [SerializeField] int fileRowCount = 200;
+    [SerializeField] int fileRowCount = 1000;
     Vector3[] positions;
 
     // Start is called before the first frame update
@@ -23,7 +23,7 @@ public class PopUpTest : MonoBehaviour
         lineRenderer.positionCount = positions.Length;
         lineRenderer.SetPositions(positions);
 
-        Invoke(nameof(DeleteLine), 1f);
+        Invoke(nameof(DeleteLine), 5f);
     }
 
     // Update is called once per frame
